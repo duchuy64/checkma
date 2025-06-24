@@ -1,0 +1,1859 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=1024">
+    <title>Công cụ check mã sản phẩm và tồn kho</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* CSS chung cho tất cả các tab */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --primary-color: #3498db;
+            --secondary-color: #f1f1f1;
+            --border-color: #ddd;
+            --success-color: #2ecc71;
+            --warning-color: #e67e22;
+            --danger-color: #e74c3c;
+            --table-header-bg: #f2f2f2;
+            --table-row-even: #f9f9f9;
+            --table-row-odd: #ffffff;
+            --highlight-bg: #fffde7;
+            --input-bg: #ffffff;
+            --input-border: #ccc;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #1e1e1e;
+                --text-color: #f0f0f0;
+                --primary-color: #2980b9;
+                --secondary-color: #2d2d2d;
+                --border-color: #444;
+                --success-color: #27ae60;
+                --warning-color: #d35400;
+                --danger-color: #c0392b;
+                --table-header-bg: #333;
+                --table-row-even: #2a2a2a;
+                --table-row-odd: #1e1e1e;
+                --highlight-bg: #333300;
+                --input-bg: #2d2d2d;
+                --input-border: #555;
+            }
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .tab-container {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: var(--secondary-color);
+            border: 1px solid var(--border-color);
+            margin-right: 5px;
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+            color: var(--text-color);
+        }
+        .tab.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* CSS từ file 01 */
+        .result-container {
+            display: flex;
+            margin-bottom: 10px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+        .result-column {
+            flex: 1;
+            position: relative;
+        }
+        .result-column:first-child {
+            border-right: 1px solid var(--border-color);
+        }
+        .column-header {
+            padding: 10px;
+            background-color: var(--table-header-bg);
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .scrollable-content {
+            height: 300px;
+            overflow-y: auto;
+        }
+        .code-row {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .code-cell {
+            padding: 8px 10px;
+            flex: 1;
+        }
+        .copy-btn {
+            padding: 3px 8px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .copy-btn:hover {
+            opacity: 0.9;
+        }
+        .summary {
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            background-color: rgba(233, 247, 239, 0.2);
+            margin-top: 10px;
+        }
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .stats-table th, .stats-table td {
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            text-align: left;
+        }
+        .stats-table th {
+            background-color: var(--table-header-bg);
+        }
+        .warning {
+            color: var(--warning-color);
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .file-input-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: var(--text-color);
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        .invalid-campaigns {
+            margin-top: 20px;
+            border: 1px solid var(--warning-color);
+            padding: 15px;
+            background-color: rgba(255, 235, 238, 0.2);
+        }
+        .invalid-campaigns h3 {
+            color: var(--warning-color);
+            margin-top: 0;
+        }
+        .invalid-campaigns-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .invalid-campaign-item {
+            padding: 8px;
+            border-bottom: 1px solid var(--warning-color);
+        }
+
+        /* CSS từ file 02 */
+        .parent-row {
+            background-color: rgba(230, 247, 255, 0.2);
+            font-weight: bold;
+        }
+        .child-row {
+            background-color: var(--table-row-even);
+        }
+        .total-row {
+            background-color: rgba(255, 242, 204, 0.2);
+            font-weight: bold;
+        }
+        .file-input {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: var(--secondary-color);
+            border-radius: 5px;
+        }
+        .sort-icon {
+            margin-left: 5px;
+        }
+        .copy-col-btn {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 5px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .copy-col-btn:hover {
+            opacity: 0.9;
+        }
+        .copy-buttons {
+            margin-bottom: 15px;
+        }
+        .copy-buttons button {
+            margin-right: 10px;
+            background-color: var(--success-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .copy-buttons button:hover {
+            opacity: 0.9;
+        }
+
+        /* CSS từ file 03 */
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: var(--table-header-bg);
+            position: sticky;
+            top: 0;
+        }
+        .warning {
+            color: var(--warning-color);
+            font-weight: bold;
+        }
+        .danger {
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            margin-right: 5px;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin-top: 10px;
+            font-family: monospace;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--input-border);
+        }
+        input[type="file"] {
+            margin-bottom: 10px;
+            color: var(--text-color);
+        }
+        .note {
+            font-size: 0.9em;
+            color: var(--text-color);
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+        .step {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .copy-btn {
+            background-color: var(--success-color);
+        }
+        .copy-btn:hover {
+            opacity: 0.9;
+        }
+        .table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 10px;
+            border: 1px solid var(--border-color);
+        }
+        .highlight {
+            background-color: var(--highlight-bg);
+        }
+        .merged-cell {
+            vertical-align: middle;
+            text-align: center;
+            font-weight: bold;
+        }
+        .copy-success {
+            color: var(--success-color);
+            font-size: 12px;
+            margin-left: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Công cụ quản lý sản phẩm tích hợp</h1>
+        
+        <div class="tab-container">
+            <div class="tab active" onclick="switchTab('extract')">Tách mã sản phẩm</div>
+            <div class="tab" onclick="switchTab('stock')">Check tồn kho và mã hết hàng</div>
+            <div class="tab" onclick="switchTab('debt')">Thống kê nợ đơn</div>
+			<div class="tab" onclick="switchTab('debtCheck')">Kiểm tra nợ đơn</div>
+        </div>
+        
+        <!-- Tab 1: Tách mã sản phẩm từ chiến dịch -->
+        <div id="extractTab" class="tab-content active">
+            <h1>Công cụ tách mã sản phẩm từ chiến dịch</h1>
+            
+            <div class="file-input-section">
+                <h2>Tải lên file Excel chứa danh sách chiến dịch</h2>
+                <input type="file" id="extractFileInput" accept=".xlsx, .xls" / onchange="processExcelFile()">
+                <p class="note">File cần có cột chứa tên chiến dịch (tự động nhận diện cột "Tên chiến dịch")</p>
+                <button onclick="processExcelFile()">Xử lý dữ liệu</button>
+                <span id="extractLoadingIndicator" class="loading hidden"></span>
+            </div>
+            
+            <h2>Kết quả:</h2>
+            <div class="result-container">
+                <div class="result-column">
+                    <div class="column-header">
+                        <span>Mã sản phẩm (sắp xếp theo số chiến dịch)</span>
+                        <button class="copy-btn" onclick="copyColumn('left')">Copy</button>
+                        <span class="copy-success" id="leftCopySuccess">Đã copy!</span>
+                    </div>
+                    <div class="scrollable-content" id="leftColumn">
+                        <div id="leftContent"></div>
+                    </div>
+                </div>
+                <div class="result-column">
+                    <div class="column-header">
+                        <span>Số chiến dịch</span>
+                        <button class="copy-btn" onclick="copyColumn('right')">Copy</button>
+                        <span class="copy-success" id="rightCopySuccess">Đã copy!</span>
+                    </div>
+                    <div class="scrollable-content" id="rightColumn">
+                        <div id="rightContent"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="summary">
+                <h3>Thống kê chi tiết:</h3>
+                <table class="stats-table" id="statsTable">
+                    <tr>
+                        <th>Chỉ số</th>
+                        <th>Giá trị</th>
+                    </tr>
+                    <tr>
+                        <td>Tổng số chiến dịch (số dòng nhập vào)</td>
+                        <td id="totalCampaigns">0</td>
+                    </tr>
+                    <tr>
+                        <td>Số chiến dịch BST</td>
+                        <td id="bstCampaigns">0</td>
+                    </tr>
+                    <tr>
+                        <td>Số chiến dịch có mã (1 mã hoặc 1 set)</td>
+                        <td id="validCampaigns">0</td>
+                    </tr>
+                    <tr>
+                        <td>Chiến dịch không hợp lệ (không phải BST, không có mã)</td>
+                        <td id="invalidCampaigns">0</td>
+                    </tr>
+                    <tr>
+                        <td>Tổng số mã/set sản phẩm</td>
+                        <td id="totalProductCodes">0</td>
+                    </tr>
+                </table>
+                <div id="warningMessage" class="warning"></div>
+            </div>
+            
+            <div id="invalidCampaignsSection" class="invalid-campaigns hidden">
+                <h3>Danh sách chiến dịch không hợp lệ:</h3>
+                <div class="invalid-campaigns-list" id="invalidCampaignsList"></div>
+                <button class="copy-btn" onclick="copyInvalidCampaigns()" style="margin-top: 10px;">Copy danh sách</button>
+                <span class="copy-success" id="invalidCopySuccess">Đã copy!</span>
+            </div>
+            
+            <h2>Hướng dẫn sử dụng:</h2>
+            <ul>
+                <li>Nhận diện mã 4-8 ký tự (ví dụ: OA1234, H800167, H103200T, M603285I- → M603285I)</li>
+                <li>Nhận diện các mã bắt đầu bằng OA, OD, CV hoặc các chữ cái khác</li>
+                <li>Giữ nguyên các mã theo set (ví dụ: H103209 - B730291, OA0185H - CV0023I)</li>
+                <li>Tự động ghép các mã liền kề thành set</li>
+                <li>Bỏ qua các chiến dịch có chứa "BST" (bộ sưu tập)</li>
+                <li>Cảnh báo nếu phát hiện chiến dịch không hợp lệ</li>
+                <li>Nhấn nút Copy để sao chép nội dung từng cột</li>
+            </ul>
+        </div>
+        
+        <!-- Tab 2: Kiểm tra tồn kho -->
+        <div id="stockTab" class="tab-content">
+            <h1>Công cụ Check tồn kho và mã hết hàng</h1>
+            
+            <div class="section">
+                <h2>Bước 1: Tải lên file Excel tồn kho</h2>
+                <input type="file" id="stockFileInput" accept=".xlsx, .xls" / onchange="analyzeStock()">
+                <p class="note">File cần có các cột: "Mã sản phẩm cha", "Mã sản phẩm", "Tổng tồn"</p>
+                <button onclick="analyzeStock()">Phân tích tồn kho</button>
+            </div>
+            
+            <div class="section" id="warningSection" style="display: none;">
+                <h2>Bước 2: Danh sách mã cha sắp hết hàng</h2>
+                <p class="note">Các mã cha có tổng tồn < 10 hoặc số size tồn < 3:</p>
+                <textarea id="warningResult" readonly></textarea>
+                <button class="copy-btn" onclick="copyWarningResults()">Sao chép mã cha</button>
+                <span class="copy-success" id="parentCopySuccess">Đã copy!</span>
+                <button class="copy-btn" onclick="copyChildCodes()">Sao chép mã con</button>
+                <span class="copy-success" id="childCopySuccess">Đã copy!</span>
+            </div>
+            
+            <div class="section" id="runningCodesSection" style="display: none;">
+                <h2>Bước 3: Nhập các mã đang chạy</h2>
+                <p>Nhập mã sản phẩm hoặc bộ mã (cách nhau bằng dấu phẩy hoặc gạch ngang):</p>
+                <textarea id="runningCodes" placeholder="Ví dụ: 
+M113150I-M850016I, H113148D-H700070D
+H633681I11, H633681I12"></textarea>
+                <button onclick="compareRunningCodes()">Kiểm tra mã đang chạy</button>
+                <button class="copy-btn" onclick="pasteExtractedCodes()">Dán mã</button>
+            </div>
+            
+            <div class="section" id="finalWarningSection" style="display: none;">
+                <h2>Kết quả: Các mã đang chạy sắp hết hàng</h2>
+                <div class="table-container">
+                    <div id="finalWarningResult"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 3: Thống kê đơn nợ -->
+        <div id="debtTab" class="tab-content">
+            <h1>Phần mềm Thống kê Đơn Nợ Hàng</h1>
+            
+            <div class="file-input">
+                <h2>Nhập dữ liệu</h2>
+                <input type="file" id="debtFileInput" accept=".csv, .xlsx, .xls" onchange="loadDebtFile()">
+                <button onclick="loadDebtFile()" id="debtLoadBtn">Phân tích dữ liệu</button>
+                <span id="debtLoadingIndicator" class="hidden loading"></span>
+            </div>
+            
+            <div id="debtResultSection" class="hidden">
+                <div class="copy-buttons">
+                    <button onclick="copyAllDebtData()">Copy toàn bộ dữ liệu</button>
+                    <button onclick="copyDebtProductCodes()">Copy danh sách mã sản phẩm con</button>
+                    <button onclick="copyDebtProductWithQuantity()">Copy mã con + số lượng nợ</button>
+                </div>
+                
+                <h2>Kết quả thống kê đơn nợ</h2>
+                <div id="debtSummaryTable"></div>
+            </div>
+        </div>
+        
+        
+<!-- Tab 4: Kiểm tra nợ đơn -->
+<div id="debtCheckTab" class="tab-content">
+    <h1>Công cụ Kiểm tra nợ đơn</h1>
+
+    <div class="section">
+        <h2>Nhập thông tin nợ đơn</h2>
+        <p>Nhập danh sách mã sản phẩm nợ đơn và số lượng (mỗi dòng 1 mã, cách số lượng bằng khoảng trắng):</p>
+        <textarea id="debtCheckCodes" placeholder="Ví dụ:
+H633681I11 5
+H633681I12 3
+H633681I13"></textarea>
+        <button onclick="checkDebtOrders()">Kiểm tra nợ đơn</button>
+        <span class="copy-success" id="debtCheckCopySuccess">Đã copy!</span>
+    </div>
+
+    <div class="section" id="debtCheckResultSection" style="display: none;">
+        <button onclick="exportDebtCheckToExcel()" style="margin-top: 15px;">Xuất kết quả ra Excel</button>
+
+        <h2>Kết quả kiểm tra nợ đơn</h2>
+
+        <h3>1. Mã sản phẩm nợ đơn còn hàng</h3>
+        <div class="table-container">
+            <table id="debtCheckResultTableInStock">
+                <thead>
+                    <tr>
+                        <th>STT</th>
+                        <th>Mã cha</th>
+                        <th>Tổng nợ</th>
+                        <th>Mã con</th>
+                        <th>Size</th>
+                        <th>Tồn kho</th>
+                        <th>Số nợ</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
+                <tbody id="debtCheckResultInStock"></tbody>
+            </table>
+        </div>
+
+        <h3>2. Mã sản phẩm nợ đơn hết hàng</h3>
+        <div class="table-container">
+            <table id="debtCheckResultTableOutOfStock">
+                <thead>
+                    <tr>
+                        <th>STT</th>
+                        <th>Mã cha</th>
+                        <th>Tổng nợ</th>
+                        <th>Mã con</th>
+                        <th>Size</th>
+                        <th>Tồn kho</th>
+                        <th>Số nợ</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
+                <tbody id="debtCheckResultOutOfStock"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+        </div>
+    </div>
+
+    <script>
+        // Hàm chuyển tab
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`${tabName}Tab`).classList.add('active');
+        }
+
+        // ========== Code từ file 01 ==========
+        let currentResults = [];
+        let invalidCampaignsList = [];
+        
+        function processExcelFile() {
+            const fileInput = document.getElementById('extractFileInput');
+            const loadingIndicator = document.getElementById('extractLoadingIndicator');
+            
+            if (!fileInput.files || !fileInput.files.length) {
+                alert('Vui lòng chọn file Excel');
+                return;
+            }
+            
+            loadingIndicator.classList.remove('hidden');
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                    
+                    if (jsonData.length < 1) {
+                        throw new Error('File Excel không có dữ liệu');
+                    }
+                    
+                    // Tìm cột chứa tên chiến dịch
+                    const headers = jsonData[0].map(h => h.toString().trim());
+                    let campaignColumnIndex = headers.findIndex(h => 
+                        h.toLowerCase().includes('tên chiến dịch') || 
+                        h.toLowerCase().includes('chiến dịch') ||
+                        h.toLowerCase().includes('campaign'));
+                    
+                    if (campaignColumnIndex === -1) {
+                        // Nếu không tìm thấy cột "Tên chiến dịch", thử dùng cột đầu tiên
+                        campaignColumnIndex = 0;
+                    }
+                    
+                    // Lấy danh sách tên chiến dịch
+                    const campaignNames = [];
+                    for (let i = 1; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (row && row[campaignColumnIndex]) {
+                            campaignNames.push(row[campaignColumnIndex].toString().trim());
+                        }
+                    }
+                    
+                    extractProductCodesFromCampaigns(campaignNames);
+                    
+                } catch (error) {
+                    alert('Lỗi khi xử lý file: ' + error.message);
+                    console.error(error);
+                } finally {
+                    loadingIndicator.classList.add('hidden');
+                }
+            };
+            
+            reader.onerror = function() {
+                alert('Lỗi khi đọc file');
+                loadingIndicator.classList.add('hidden');
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        function extractProductCodesFromCampaigns(campaignNames) {
+            const productCodeMap = new Map();
+            let totalCampaigns = 0;
+            let bstCampaigns = 0;
+            let validCampaigns = 0;
+            invalidCampaignsList = [];
+            
+            // Regex nhận diện mã (bao gồm cả trường hợp có dấu - sát mã)
+            const codePattern = /(?:^|\s)((?:OA|OD|CV|[A-Za-z])\d{4,6}[A-Za-z]?)(?:-|\s|$)/g;
+            const setRegex = /((?:OA|OD|CV|[A-Za-z])\d{4,6}[A-Za-z]?\s*-\s*(?:OA|OD|CV|[A-Za-z])\d{4,6}[A-Za-z]?)/gi;
+            
+            campaignNames.forEach(campaignName => {
+                if (!campaignName.trim()) return;
+                
+                totalCampaigns++;
+                
+                if (campaignName.includes('BST')) {
+                    bstCampaigns++;
+                    return;
+                }
+                
+                let foundCodes = new Set();
+                let hasSetCode = false;
+                
+                // Tìm set mã trước
+                const setMatches = campaignName.match(setRegex);
+                if (setMatches) {
+                    setMatches.forEach(match => {
+                        const normalizedSet = match.toUpperCase()
+                            .replace(/\s+/g, ' ')
+                            .replace(/([A-Z0-9])-([A-Z0-9])/g, '$1 - $2')
+                            .trim();
+                        foundCodes.add(normalizedSet);
+                        hasSetCode = true;
+                    });
+                }
+                
+                // Chỉ tìm mã đơn nếu không có set mã
+                if (!hasSetCode) {
+                    let singleMatches;
+                    const codes = [];
+                    codePattern.lastIndex = 0;
+                    
+                    while ((singleMatches = codePattern.exec(campaignName)) !== null) {
+                        let code = singleMatches[1].toUpperCase();
+                        if (code.endsWith('-')) {
+                            code = code.slice(0, -1);
+                        }
+                        codes.push(code);
+                    }
+                    
+                    // Ghép các mã liền kề thành set (nếu có nhiều hơn 1 mã)
+                    if (codes.length > 1) {
+                        const potentialSet = codes.join(' - ');
+                        if (!foundCodes.has(potentialSet)) {
+                            foundCodes.add(potentialSet);
+                            hasSetCode = true;
+                        }
+                    } else if (codes.length === 1) {
+                        foundCodes.add(codes[0]);
+                    }
+                }
+                
+                if (foundCodes.size > 0) {
+                    validCampaigns++;
+                    foundCodes.forEach(code => {
+                        if (productCodeMap.has(code)) {
+                            productCodeMap.set(code, productCodeMap.get(code) + 1);
+                        } else {
+                            productCodeMap.set(code, 1);
+                        }
+                    });
+                } else {
+                    invalidCampaignsList.push(campaignName);
+                }
+            });
+            
+            // Sắp xếp theo số chiến dịch giảm dần
+            currentResults = Array.from(productCodeMap.entries()).sort((a, b) => b[1] - a[1]);
+            
+            // Hiển thị kết quả
+            renderResults();
+            
+            // Hiển thị thống kê
+            document.getElementById('totalCampaigns').textContent = totalCampaigns;
+            document.getElementById('bstCampaigns').textContent = bstCampaigns;
+            document.getElementById('validCampaigns').textContent = validCampaigns;
+            document.getElementById('invalidCampaigns').textContent = invalidCampaignsList.length;
+            document.getElementById('totalProductCodes').textContent = currentResults.length;
+            
+            // Hiển thị danh sách chiến dịch không hợp lệ nếu có
+            const invalidSection = document.getElementById('invalidCampaignsSection');
+            const invalidListElement = document.getElementById('invalidCampaignsList');
+            
+            if (invalidCampaignsList.length > 0) {
+                invalidSection.classList.remove('hidden');
+                invalidListElement.innerHTML = '';
+                
+                invalidCampaignsList.forEach(campaign => {
+                    const item = document.createElement('div');
+                    item.className = 'invalid-campaign-item';
+                    item.textContent = campaign;
+                    invalidListElement.appendChild(item);
+                });
+            } else {
+                invalidSection.classList.add('hidden');
+            }
+            
+            // Kiểm tra và cảnh báo nếu có chiến dịch không hợp lệ
+            const warningElement = document.getElementById('warningMessage');
+            if (invalidCampaignsList.length > 0) {
+                warningElement.textContent = `⚠️ Có ${invalidCampaignsList.length} chiến dịch không hợp lệ (không phải BST và không có mã). Xem danh sách bên dưới.`;
+            } else {
+                warningElement.textContent = '';
+            }
+            
+            // Xác minh tổng số
+            const sum = bstCampaigns + validCampaigns + invalidCampaignsList.length;
+            if (sum !== totalCampaigns) {
+                warningElement.textContent += `\n⚠️ Lỗi đếm: Tổng phụ (${sum}) không khớp với tổng chiến dịch (${totalCampaigns})`;
+            }
+        }
+        
+        function renderResults() {
+            let leftContent = '';
+            let rightContent = '';
+            
+            currentResults.forEach(([code, count]) => {
+                leftContent += `<div class="code-row"><div class="code-cell">${code}</div></div>`;
+                rightContent += `<div class="code-row"><div class="code-cell">${count}</div></div>`;
+            });
+            
+            document.getElementById('leftContent').innerHTML = leftContent || 
+                '<div class="code-row"><div class="code-cell">Không có mã nào</div></div>';
+            document.getElementById('rightContent').innerHTML = rightContent || 
+                '<div class="code-row"><div class="code-cell">0</div></div>';
+            
+            syncScroll();
+        }
+        
+        function syncScroll() {
+            const leftColumn = document.getElementById('leftColumn');
+            const rightColumn = document.getElementById('rightColumn');
+            
+            leftColumn.addEventListener('scroll', function() {
+                rightColumn.scrollTop = leftColumn.scrollTop;
+            });
+            
+            rightColumn.addEventListener('scroll', function() {
+                leftColumn.scrollTop = rightColumn.scrollTop;
+            });
+        }
+        
+        function copyColumn(side) {
+            let textToCopy = '';
+            
+            currentResults.forEach(([code, count]) => {
+                textToCopy += (side === 'left' ? code : count) + '\n';
+            });
+            
+            navigator.clipboard.writeText(textToCopy.trim()).then(() => {
+                const successElement = document.getElementById(`${side}CopySuccess`);
+                successElement.style.display = 'inline';
+                setTimeout(() => successElement.style.display = 'none', 2000);
+            }).catch(err => {
+                console.error('Lỗi khi sao chép: ', err);
+            });
+        }
+        
+        function copyInvalidCampaigns() {
+            let textToCopy = invalidCampaignsList.join('\n');
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const successElement = document.getElementById('invalidCopySuccess');
+                successElement.style.display = 'inline';
+                setTimeout(() => successElement.style.display = 'none', 2000);
+            }).catch(err => {
+                console.error('Lỗi khi sao chép: ', err);
+            });
+        }
+
+        // ========== Code từ file 02 ==========
+        let summaryData = {};
+        let currentSortColumn = 'totalQuantity';
+        let currentSortDirection = 'desc';
+        
+        function loadDebtFile() {
+            const fileInput = document.getElementById('debtFileInput');
+            const file = fileInput.files[0];
+            const loadBtn = document.getElementById('debtLoadBtn');
+            const loadingIndicator = document.getElementById('debtLoadingIndicator');
+            const resultSection = document.getElementById('debtResultSection');
+            
+            if (!file) {
+                alert('Vui lòng chọn file trước khi phân tích');
+                return;
+            }
+            
+            loadBtn.disabled = true;
+            loadingIndicator.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+            
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = e.target.result;
+                    
+                    if (file.name.endsWith('.csv')) {
+                        processDebtCSV(data);
+                    } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                        processDebtExcel(data);
+                    } else {
+                        throw new Error('Định dạng file không được hỗ trợ');
+                    }
+                    
+                    calculateDebtSummary();
+                    displayDebtSummaryByParent();
+                    resultSection.classList.remove('hidden');
+                } catch (error) {
+                    alert('Lỗi khi xử lý file: ' + error.message);
+                    console.error(error);
+                } finally {
+                    loadBtn.disabled = false;
+                    loadingIndicator.classList.add('hidden');
+                }
+            };
+            
+            reader.onerror = function() {
+                alert('Lỗi khi đọc file');
+                loadBtn.disabled = false;
+                loadingIndicator.classList.add('hidden');
+            };
+            
+            if (file.name.endsWith('.csv')) {
+                reader.readAsText(file);
+            } else {
+                reader.readAsArrayBuffer(file);
+            }
+        }
+        
+        function processDebtCSV(csvContent) {
+            const lines = csvContent.split('\n').filter(line => line.trim() !== '');
+            if (lines.length < 1) throw new Error('File CSV không có dữ liệu');
+            
+            const headers = lines[0].split(',').map(h => h.trim());
+            const requiredColumns = ['Mã sản phẩm cha', 'Mã sản phẩm', 'Số lượng', 'Giá trị đơn hàng'];
+            
+            for (const col of requiredColumns) {
+                if (!headers.includes(col)) {
+                    throw new Error(`File thiếu cột bắt buộc: ${col}`);
+                }
+            }
+            
+            summaryData = {};
+            
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',');
+                const row = {};
+                
+                for (let j = 0; j < headers.length; j++) {
+                    row[headers[j]] = values[j] ? values[j].trim() : '';
+                }
+                
+                processDebtRow(row);
+            }
+        }
+        
+        function processDebtExcel(excelData) {
+            const workbook = XLSX.read(excelData, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            if (jsonData.length < 1) throw new Error('File Excel không có dữ liệu');
+            
+            const headers = jsonData[0].map(h => h.toString().trim());
+            const requiredColumns = ['Mã sản phẩm cha', 'Mã sản phẩm', 'Số lượng', 'Giá trị đơn hàng'];
+            
+            for (const col of requiredColumns) {
+                if (!headers.includes(col)) {
+                    throw new Error(`File thiếu cột bắt buộc: ${col}`);
+                }
+            }
+            
+            summaryData = {};
+            
+            for (let i = 1; i < jsonData.length; i++) {
+                const rowData = jsonData[i];
+                if (!rowData || rowData.length === 0) continue;
+                
+                const row = {};
+                
+                for (let j = 0; j < headers.length; j++) {
+                    const value = rowData[j] !== undefined ? rowData[j] : '';
+                    row[headers[j]] = typeof value === 'string' ? value.trim() : value.toString();
+                }
+                
+                processDebtRow(row);
+            }
+        }
+        
+        function processDebtRow(row) {
+            const parentCode = row['Mã sản phẩm cha'] || 'Không có mã cha';
+            const productCode = row['Mã sản phẩm'];
+            
+            if (!productCode) return;
+            
+            if (!summaryData[parentCode]) {
+                summaryData[parentCode] = {
+                    children: {},
+                    totalQuantity: 0,
+                    totalValue: 0,
+                    rowspan: 0
+                };
+            }
+            
+            if (!summaryData[parentCode].children[productCode]) {
+                summaryData[parentCode].children[productCode] = {
+                    totalQuantity: 0,
+                    totalValue: 0
+                };
+                summaryData[parentCode].rowspan++;
+            }
+            
+            const quantity = parseFloat(row['Số lượng'].toString().replace(/[^0-9.-]/g, '')) || 0;
+            const value = parseFloat(row['Giá trị đơn hàng'].toString().replace(/[^0-9.-]/g, '')) || 0;
+            
+            summaryData[parentCode].children[productCode].totalQuantity += quantity;
+            summaryData[parentCode].children[productCode].totalValue += value;
+            
+            summaryData[parentCode].totalQuantity += quantity;
+            summaryData[parentCode].totalValue += value;
+        }
+        
+        function calculateDebtSummary() {
+            // Đã tính toán trong quá trình xử lý từng dòng
+        }
+        
+        function displayDebtSummaryByParent() {
+            let tableHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortDebtData('parentCode')">Mã sản phẩm cha <span class="sort-icon">${currentSortColumn === 'parentCode' ? (currentSortDirection === 'asc' ? '↑' : '↓') : ''}</span></th>
+                            <th onclick="sortDebtData('childCode')">Mã sản phẩm con <span class="sort-icon">${currentSortColumn === 'childCode' ? (currentSortDirection === 'asc' ? '↑' : '↓') : ''}</span></th>
+                            <th onclick="sortDebtData('totalQuantity')">Tổng số lượng nợ <span class="sort-icon">${currentSortColumn === 'totalQuantity' ? (currentSortDirection === 'asc' ? '↑' : '↓') : ''}</span><button class="copy-col-btn" onclick="copyDebtColumn('quantity', event)">Copy</button></th>
+                            <th onclick="sortDebtData('totalValue')">Tổng giá trị nợ <span class="sort-icon">${currentSortColumn === 'totalValue' ? (currentSortDirection === 'asc' ? '↑' : '↓') : ''}</span><button class="copy-col-btn" onclick="copyDebtColumn('value', event)">Copy</button></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            const parentCodes = getSortedDebtParentCodes();
+            let isFirstParentRow = true;
+            
+            for (const parentCode of parentCodes) {
+                const parentGroup = summaryData[parentCode];
+                const childCodes = getSortedDebtChildCodes(parentCode);
+                
+                // Dòng đầu tiên của mỗi nhóm mã cha
+                tableHTML += `
+                    <tr class="parent-row">
+                        <td rowspan="${parentGroup.rowspan + 1}">${parentCode}</td>
+                        <td>Tổng cộng</td>
+                        <td>${parentGroup.totalQuantity.toLocaleString()}</td>
+                        <td>${parentGroup.totalValue.toLocaleString()}</td>
+                    </tr>
+                `;
+                
+                // Các dòng mã con
+                for (const childCode of childCodes) {
+                    const child = parentGroup.children[childCode];
+                    tableHTML += `
+                        <tr class="child-row">
+                            <td>${childCode}</td>
+                            <td>${child.totalQuantity.toLocaleString()}</td>
+                            <td>${child.totalValue.toLocaleString()}</td>
+                        </tr>
+                    `;
+                }
+            }
+            
+            // Tổng toàn bộ
+            const grandTotal = calculateDebtGrandTotal();
+            tableHTML += `
+                <tr class="total-row">
+                    <td colspan="2">TỔNG CỘNG TẤT CẢ</td>
+                    <td>${grandTotal.totalQuantity.toLocaleString()}</td>
+                    <td>${grandTotal.totalValue.toLocaleString()}</td>
+                </tr>
+            `;
+            
+            tableHTML += '</tbody></table>';
+            
+            document.getElementById('debtSummaryTable').innerHTML = tableHTML;
+        }
+        
+        function getSortedDebtParentCodes() {
+            return Object.keys(summaryData).sort((a, b) => {
+                const groupA = summaryData[a];
+                const groupB = summaryData[b];
+                
+                if (currentSortColumn === 'parentCode') {
+                    return currentSortDirection === 'asc' 
+                        ? a.localeCompare(b) 
+                        : b.localeCompare(a);
+                }
+                
+                if (currentSortColumn === 'totalQuantity') {
+                    return currentSortDirection === 'asc' 
+                        ? groupA.totalQuantity - groupB.totalQuantity 
+                        : groupB.totalQuantity - groupA.totalQuantity;
+                }
+                
+                if (currentSortColumn === 'totalValue') {
+                    return currentSortDirection === 'asc' 
+                        ? groupA.totalValue - groupB.totalValue 
+                        : groupB.totalValue - groupA.totalValue;
+                }
+                
+                return 0;
+            });
+        }
+        
+        function getSortedDebtChildCodes(parentCode) {
+            const children = summaryData[parentCode].children;
+            return Object.keys(children).sort((a, b) => {
+                const childA = children[a];
+                const childB = children[b];
+                
+                if (currentSortColumn === 'childCode') {
+                    return currentSortDirection === 'asc' 
+                        ? a.localeCompare(b) 
+                        : b.localeCompare(a);
+                }
+                
+                if (currentSortColumn === 'totalQuantity') {
+                    return currentSortDirection === 'asc' 
+                        ? childA.totalQuantity - childB.totalQuantity 
+                        : childB.totalQuantity - childA.totalQuantity;
+                }
+                
+                if (currentSortColumn === 'totalValue') {
+                    return currentSortDirection === 'asc' 
+                        ? childA.totalValue - childB.totalValue 
+                        : childB.totalValue - childA.totalValue;
+                }
+                
+                return 0;
+            });
+        }
+        
+        function sortDebtData(column) {
+            if (currentSortColumn === column) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortColumn = column;
+                currentSortDirection = 'desc';
+            }
+            displayDebtSummaryByParent();
+        }
+        
+        function calculateDebtGrandTotal() {
+            let totalQuantity = 0;
+            let totalValue = 0;
+            
+            for (const parentCode in summaryData) {
+                totalQuantity += summaryData[parentCode].totalQuantity;
+                totalValue += summaryData[parentCode].totalValue;
+            }
+            
+            return {
+                totalQuantity,
+                totalValue
+            };
+        }
+        
+        function copyDebtColumn(columnType, event) {
+            event.stopPropagation();
+            let columnData = [];
+            
+            // Thêm tiêu đề cột
+            columnData.push(columnType === 'quantity' ? 'Tổng số lượng nợ' : 'Tổng giá trị nợ');
+            
+            // Lấy dữ liệu từ các nhóm cha
+            const parentCodes = getSortedDebtParentCodes();
+            for (const parentCode of parentCodes) {
+                const parentGroup = summaryData[parentCode];
+                
+                // Thêm tổng của nhóm cha
+                columnData.push(columnType === 'quantity' 
+                    ? parentGroup.totalQuantity.toLocaleString() 
+                    : parentGroup.totalValue.toLocaleString());
+                
+                // Lấy dữ liệu từ các mã con
+                const childCodes = getSortedDebtChildCodes(parentCode);
+                for (const childCode of childCodes) {
+                    const child = parentGroup.children[childCode];
+                    columnData.push(columnType === 'quantity' 
+                        ? child.totalQuantity.toLocaleString() 
+                        : child.totalValue.toLocaleString());
+                }
+            }
+            
+            // Thêm tổng toàn bộ
+            const grandTotal = calculateDebtGrandTotal();
+            columnData.push(columnType === 'quantity' 
+                ? grandTotal.totalQuantity.toLocaleString() 
+                : grandTotal.totalValue.toLocaleString());
+            
+            const textToCopy = columnData.join('\n');
+            copyToClipboard(textToCopy);
+        }
+        
+        function copyAllDebtData() {
+            let allData = [];
+            
+            // Tiêu đề
+            allData.push('Mã sản phẩm cha\tMã sản phẩm con\tTổng số lượng nợ\tTổng giá trị nợ');
+            
+            // Dữ liệu
+            const parentCodes = getSortedDebtParentCodes();
+            for (const parentCode of parentCodes) {
+                const parentGroup = summaryData[parentCode];
+                
+                // Dòng tổng của nhóm cha
+                allData.push(`${parentCode}\tTổng cộng\t${parentGroup.totalQuantity.toLocaleString()}\t${parentGroup.totalValue.toLocaleString()}`);
+                
+                // Các dòng mã con
+                const childCodes = getSortedDebtChildCodes(parentCode);
+                for (const childCode of childCodes) {
+                    const child = parentGroup.children[childCode];
+                    allData.push(`\t${childCode}\t${child.totalQuantity.toLocaleString()}\t${child.totalValue.toLocaleString()}`);
+                }
+            }
+            
+            // Tổng toàn bộ
+            const grandTotal = calculateDebtGrandTotal();
+            allData.push(`TỔNG CỘNG TẤT CẢ\t\t${grandTotal.totalQuantity.toLocaleString()}\t${grandTotal.totalValue.toLocaleString()}`);
+            
+            const textToCopy = allData.join('\n');
+            copyToClipboard(textToCopy);
+        }
+        
+        function copyDebtProductCodes() {
+            let productCodes = [];
+            
+            const parentCodes = getSortedDebtParentCodes();
+            for (const parentCode of parentCodes) {
+                const parentGroup = summaryData[parentCode];
+                const childCodes = getSortedDebtChildCodes(parentCode);
+                
+                for (const childCode of childCodes) {
+                    productCodes.push(childCode);
+                }
+            }
+            
+            const textToCopy = productCodes.join('\n');
+            copyToClipboard(textToCopy);
+        }
+        
+        function copyDebtProductWithQuantity() {
+            let productData = [];
+            
+            const parentCodes = getSortedDebtParentCodes();
+            for (const parentCode of parentCodes) {
+                const parentGroup = summaryData[parentCode];
+                const childCodes = getSortedDebtChildCodes(parentCode);
+                
+                for (const childCode of childCodes) {
+                    const child = parentGroup.children[childCode];
+                    productData.push(`${childCode}\t${child.totalQuantity.toLocaleString()}`);
+                }
+            }
+            
+            const textToCopy = productData.join('\n');
+            copyToClipboard(textToCopy);
+        }
+
+        // ========== Code từ file 03 ==========
+        let warningData = {};
+        let parentChildMap = {};
+        let allChildProducts = {};
+        
+        function analyzeStock() {
+            const fileInput = document.getElementById('stockFileInput');
+            
+            if (!fileInput.files || !fileInput.files.length) {
+                alert('Vui lòng chọn file Excel');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                
+                // Xác định vị trí các cột
+                const headers = jsonData[0];
+                const productCodeIndex = headers.indexOf("Mã sản phẩm");
+                const parentCodeIndex = headers.indexOf("Mã sản phẩm cha");
+                const totalStockIndex = headers.indexOf("Tổng tồn");
+                
+                if (productCodeIndex === -1 || totalStockIndex === -1 || parentCodeIndex === -1) {
+                    alert('File Excel không đúng định dạng. Vui lòng kiểm tra lại các cột "Mã sản phẩm", "Mã sản phẩm cha" và "Tổng tồn"');
+                    return;
+                }
+                
+                // Reset dữ liệu
+                warningData = {};
+                parentChildMap = {};
+                allChildProducts = {};
+                let allParentProducts = {};
+                
+                for (let i = 1; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    const productCode = row[productCodeIndex] ? row[productCodeIndex].toString().trim() : '';
+                    const parentCode = row[parentCodeIndex] ? row[parentCodeIndex].toString().trim() : '';
+                    const stock = parseInt(row[totalStockIndex]) || 0;
+                    
+                    if (!productCode || !parentCode) continue;
+                    
+                    // Chuẩn hóa mã cha - chỉ lấy 7 ký tự đầu
+                    const normalizedParentCode = parentCode.substring(0, 7);
+                    
+                    // Xác định size từ 2 chữ số cuối của mã sản phẩm
+                    const sizeCode = productCode.slice(-2);
+                    let sizeName = "Unknown";
+                    
+                    switch(sizeCode) {
+                        case '11': sizeName = 'S'; break;
+                        case '12': sizeName = 'M'; break;
+                        case '13': sizeName = 'L'; break;
+                        case '14': sizeName = 'XL'; break;
+                        case '15': sizeName = 'XXL'; break;
+                        default: sizeName = `Code ${sizeCode}`;
+                    }
+                    
+                    // Lưu thông tin sản phẩm con
+                    allChildProducts[productCode] = {
+                        parentCode: normalizedParentCode,
+                        size: sizeName,
+                        stock: stock
+                    };
+                    
+                    // Xây dựng map mã cha - mã con
+                    if (!parentChildMap[normalizedParentCode]) {
+                        parentChildMap[normalizedParentCode] = [];
+                    }
+                    parentChildMap[normalizedParentCode].push(productCode);
+                    
+                    // Thêm vào danh sách tất cả mã cha
+                    if (!allParentProducts[normalizedParentCode]) {
+                        allParentProducts[normalizedParentCode] = {
+                            totalStock: 0,
+                            sizes: new Set(),
+                            childProducts: []
+                        };
+                    }
+                    
+                    allParentProducts[normalizedParentCode].totalStock += stock;
+                    if (stock > 0) {
+                        allParentProducts[normalizedParentCode].sizes.add(sizeName);
+                    }
+                    allParentProducts[normalizedParentCode].childProducts.push({
+                        code: productCode,
+                        size: sizeName,
+                        stock: stock
+                    });
+                }
+                
+                // Lọc các mã cha cần cảnh báo
+                for (const parentCode in allParentProducts) {
+                    const product = allParentProducts[parentCode];
+                    const totalStock = product.totalStock;
+                    const sizeCount = product.sizes.size;
+                    
+                    if (totalStock < 10 || sizeCount < 3) {
+                        warningData[parentCode] = {
+                            totalStock: totalStock,
+                            sizeCount: sizeCount,
+                            sizes: Array.from(product.sizes).join(', '),
+                            childProducts: product.childProducts.sort((a, b) => b.stock - a.stock)
+                        };
+                    }
+                }
+                
+                // Hiển thị danh sách cảnh báo dạng text
+                let warningText = '';
+                for (const parentCode in warningData) {
+                    const product = warningData[parentCode];
+                    let warnings = [];
+                    
+                    if (product.totalStock < 10) {
+                        warnings.push(`Tổng tồn ${product.totalStock}<10`);
+                    }
+                    
+                    if (product.sizeCount < 3) {
+                        warnings.push(`Còn ${product.sizeCount} size`);
+                    }
+                    
+                    warningText += `Mã cha: ${parentCode} (${warnings.join('; ')})\n`;
+                    warningText += `Size tồn: ${product.sizes}\n`;
+                    
+                    // Thêm chi tiết từng mã con
+                    for (const child of product.childProducts) {
+                        if (child.stock > 0) {
+                            warningText += `- ${child.code} (${child.size}): ${child.stock}\n`;
+                        }
+                    }
+                    warningText += '\n';
+                }
+                
+                if (warningText === '') {
+                    warningText = 'Không có mã cha nào sắp hết hàng.';
+                }
+                
+                document.getElementById('warningResult').value = warningText;
+                document.getElementById('warningSection').style.display = 'block';
+                document.getElementById('runningCodesSection').style.display = 'block';
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        function extractProductCodes(input) {
+            let codes = new Set();
+            
+            // Tách các mã cách nhau bởi dấu phẩy hoặc gạch ngang
+            const parts = input.split(/[,\-]/).map(part => part.trim()).filter(part => part !== '');
+            
+            for (const part of parts) {
+                // Xử lý mã đơn lẻ (có thể là mã cha hoặc mã con)
+                if (part.length >= 7) {
+                    // Nếu là mã con (có 2 số cuối)
+                    if (/[A-Za-z]{1,2}\d{2}$/.test(part)) {
+                        // Thêm cả mã con và mã cha (7 ký tự đầu)
+                        codes.add(part);
+                        codes.add(part.substring(0, 7));
+                    } 
+                    // Nếu là mã cha (7-8 ký tự)
+                    else {
+                        codes.add(part.substring(0, 7));
+                    }
+                }
+            }
+            
+            return Array.from(codes);
+        }
+        
+        function compareRunningCodes() {
+            const runningCodesInput = document.getElementById('runningCodes').value;
+            
+            // Tách và chuẩn hóa các mã từ input
+            const codesToCheck = extractProductCodes(runningCodesInput);
+            
+            if (codesToCheck.length === 0) {
+                alert('Vui lòng nhập ít nhất một mã sản phẩm');
+                return;
+            }
+            
+            // Tìm tất cả mã con từ các mã đã nhập
+            let runningCodes = new Set();
+            for (const code of codesToCheck) {
+                // Nếu là mã con
+                if (allChildProducts[code]) {
+                    runningCodes.add(code);
+                }
+                // Nếu là mã cha
+                else if (parentChildMap[code]) {
+                    parentChildMap[code].forEach(childCode => runningCodes.add(childCode));
+                }
+            }
+            
+            runningCodes = Array.from(runningCodes);
+            
+            if (runningCodes.length === 0) {
+                alert('Không tìm thấy mã sản phẩm nào phù hợp trong dữ liệu tồn kho');
+                return;
+            }
+            
+            // Nhóm theo mã cha
+            let warningsByParent = {};
+            
+            for (const runningCode of runningCodes) {
+                const childInfo = allChildProducts[runningCode];
+                if (!childInfo) continue;
+                
+                const parentCode = childInfo.parentCode;
+                
+                if (!warningsByParent[parentCode]) {
+                    warningsByParent[parentCode] = {
+                        parentInfo: warningData[parentCode] || {
+                            totalStock: 0,
+                            sizeCount: 0,
+                            sizes: '',
+                            childProducts: []
+                        },
+                        childProducts: []
+                    };
+                    
+                    // Tính lại tổng tồn từ các mã con
+                    if (parentChildMap[parentCode]) {
+                        let total = 0;
+                        let sizes = new Set();
+                        let children = [];
+                        
+                        parentChildMap[parentCode].forEach(childCode => {
+                            const child = allChildProducts[childCode];
+                            if (child) {
+                                total += child.stock;
+                                if (child.stock > 0) sizes.add(child.size);
+                                children.push({
+                                    code: childCode,
+                                    size: child.size,
+                                    stock: child.stock
+                                });
+                            }
+                        });
+                        
+                        warningsByParent[parentCode].parentInfo.totalStock = total;
+                        warningsByParent[parentCode].parentInfo.sizeCount = sizes.size;
+                        warningsByParent[parentCode].parentInfo.sizes = Array.from(sizes).join(', ');
+                        warningsByParent[parentCode].parentInfo.childProducts = children.sort((a, b) => b.stock - a.stock);
+                    }
+                }
+                
+                warningsByParent[parentCode].childProducts.push({
+                    code: runningCode,
+                    size: childInfo.size,
+                    stock: childInfo.stock
+                });
+            }
+            
+            // Lọc chỉ các mã cha thỏa điều kiện cảnh báo
+            let finalWarnings = {};
+            for (const parentCode in warningsByParent) {
+                const parentData = warningsByParent[parentCode];
+                if (parentData.parentInfo.totalStock < 10 || parentData.parentInfo.sizeCount < 3) {
+                    finalWarnings[parentCode] = parentData;
+                }
+            }
+            
+            // Hiển thị kết quả cuối cùng
+            let finalHTML = '';
+            
+            if (Object.keys(finalWarnings).length === 0) {
+                finalHTML = '<p>Không có mã đang chạy nào sắp hết hàng.</p>';
+            } else {
+                finalHTML = '<table>';
+                finalHTML += '<tr><th>Mã cha (7 ký tự)</th><th>Mã con</th><th>Size</th><th>Tồn kho</th><th>Tổng tồn</th><th>Số size tồn</th><th>Size tồn</th><th>Cảnh báo</th></tr>';
+                
+                for (const parentCode in finalWarnings) {
+                    const parentData = finalWarnings[parentCode];
+                    const parentInfo = parentData.parentInfo;
+                    
+                    let parentWarnings = [];
+                    if (parentInfo.totalStock < 10) {
+                        parentWarnings.push(`Tổng tồn ${parentInfo.totalStock}<10`);
+                    }
+                    if (parentInfo.sizeCount < 3) {
+                        parentWarnings.push(`Còn ${parentInfo.sizeCount} size`);
+                    }
+                    
+                    // Thêm hàng cho mã cha
+                    finalHTML += `<tr class="highlight">
+                        <td>${parentCode}</td>
+                        <td colspan="2"><strong>Tất cả mã con</strong></td>
+                        <td></td>
+                        <td>${parentInfo.totalStock}</td>
+                        <td>${parentInfo.sizeCount}</td>
+                        <td>${parentInfo.sizes}</td>
+                        <td class="${parentWarnings.length ? 'danger' : ''}">${parentWarnings.join('; ')}</td>
+                    </tr>`;
+                    
+                    // Thêm các hàng cho từng mã con
+                    for (const child of parentInfo.childProducts) {
+                        let childWarnings = [];
+                        if (child.stock <= 0) {
+                            childWarnings.push('Hết hàng');
+                        } else if (child.stock < 3) {
+                            childWarnings.push(`Tồn thấp (${child.stock})`);
+                        }
+                        
+                        finalHTML += `<tr>
+                            <td></td>
+                            <td>${child.code}</td>
+                            <td>${child.size}</td>
+                            <td>${child.stock}</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td class="${childWarnings.length ? 'warning' : ''}">${childWarnings.join('; ')}</td>
+                        </tr>`;
+                    }
+                }
+                
+                finalHTML += '</table>';
+            }
+            
+            document.getElementById('finalWarningResult').innerHTML = finalHTML;
+            document.getElementById('finalWarningSection').style.display = 'block';
+        }
+        
+        function checkDebtOrders() {
+            // Kiểm tra xem đã phân tích tồn kho chưa
+            if (Object.keys(allChildProducts).length === 0) {
+                alert('Vui lòng phân tích tồn kho trước (Tab 2)');
+                return;
+            }
+            
+            const debtCodesInput = document.getElementById('debtCheckCodes').value;
+            const debtLines = debtCodesInput.split('\n')
+                .map(line => line.trim())
+                .filter(line => line !== '');
+            
+            if (debtLines.length === 0) {
+                alert('Vui lòng nhập ít nhất một mã sản phẩm nợ đơn');
+                return;
+            }
+            
+            let debtItems = [];
+            let parentDebtMap = {};
+            
+            // Xử lý từng dòng nhập liệu
+            for (const line of debtLines) {
+                const parts = line.split(/\s+/);
+                const debtCode = parts[0];
+                const debtQty = parts.length > 1 ? parseInt(parts[1]) || 0 : 0;
+                
+                if (!debtCode) continue;
+                
+                // Kiểm tra xem mã có trong danh sách tồn kho không
+                if (allChildProducts[debtCode]) {
+                    const product = allChildProducts[debtCode];
+                    const parentCode = product.parentCode;
+                    
+                    // Thêm vào danh sách chi tiết
+                    debtItems.push({
+                        code: debtCode,
+                        size: product.size,
+                        stock: product.stock,
+                        parentCode: parentCode,
+                        debtQty: debtQty
+                    });
+                    
+                    // Tính tổng nợ theo mã cha
+                    if (!parentDebtMap[parentCode]) {
+                        parentDebtMap[parentCode] = {
+                            totalDebt: 0,
+                            items: []
+                        };
+                    }
+                    parentDebtMap[parentCode].totalDebt += debtQty;
+                    parentDebtMap[parentCode].items.push({
+                        code: debtCode,
+                        size: product.size,
+                        stock: product.stock,
+                        debtQty: debtQty
+                    });
+                } else {
+                    // Nếu mã không tồn tại, vẫn thêm vào với stock = 0
+                    const parentCode = debtCode.substring(0, 7);
+                    
+                    debtItems.push({
+                        code: debtCode,
+                        size: "Không xác định",
+                        stock: 0,
+                        parentCode: parentCode,
+                        debtQty: debtQty
+                    });
+                    
+                    if (!parentDebtMap[parentCode]) {
+                        parentDebtMap[parentCode] = {
+                            totalDebt: 0,
+                            items: []
+                        };
+                    }
+                    parentDebtMap[parentCode].totalDebt += debtQty;
+                    parentDebtMap[parentCode].items.push({
+                        code: debtCode,
+                        size: "Không xác định",
+                        stock: 0,
+                        debtQty: debtQty
+                    });
+                }
+            }
+            
+            // Chuyển thành mảng và sắp xếp theo tổng nợ giảm dần
+            const sortedParents = Object.keys(parentDebtMap)
+                .map(parentCode => ({
+                    parentCode,
+                    totalDebt: parentDebtMap[parentCode].totalDebt,
+                    items: parentDebtMap[parentCode].items.sort((a, b) => b.debtQty - a.debtQty)
+                }))
+                .sort((a, b) => b.totalDebt - a.totalDebt);
+            
+            // Hiển thị kết quả
+            let resultHTML = '';
+            
+            if (sortedParents.length === 0) {
+                resultHTML = '<tr><td colspan="8">Không có mã nợ đơn nào đang có tồn kho.</td></tr>';
+            } else {
+                let rowIndex = 1;
+                for (const parent of sortedParents) {
+                    const rowspan = parent.items.length;
+                    let firstRow = true;
+                    
+                    for (const item of parent.items) {
+                        resultHTML += `<tr>`;
+                        
+                        if (firstRow) {
+                            resultHTML += `
+                                <td rowspan="${rowspan}" class="merged-cell">${rowIndex++}</td>
+                                <td rowspan="${rowspan}" class="merged-cell">${parent.parentCode}</td>
+                                <td rowspan="${rowspan}" class="merged-cell">${parent.totalDebt}</td>
+                            `;
+                            firstRow = false;
+                        }
+                        
+                        const highlightClass = item.debtQty > item.stock ? 'danger' : '';
+                        const stockText = item.stock > 0 ? item.stock : 'Hết hàng';
+                        
+                        resultHTML += `
+                            <td>${item.code}</td>
+                            <td>${item.size}</td>
+                            <td>${stockText}</td>
+                            <td class="${highlightClass}">${item.debtQty}</td>
+                            <td><button onclick="alert('Cần giục đơn cho mã ${item.code}\\nTồn: ${item.stock}\\nNợ: ${item.debtQty}')">Giục đơn</button></td>
+                        `;
+                        
+                        resultHTML += `</tr>`;
+                    }
+                }
+            }
+            
+            document.getElementById('debtCheckResult').innerHTML = resultHTML;
+            document.getElementById('debtCheckResultSection').style.display = 'block';
+        }
+        
+        function copyWarningResults() {
+            const textarea = document.getElementById('warningResult');
+            textarea.select();
+            document.execCommand('copy');
+            const successElement = document.getElementById('parentCopySuccess');
+            successElement.style.display = 'inline';
+            setTimeout(() => successElement.style.display = 'none', 2000);
+        }
+        
+        function copyChildCodes() {
+            let childCodes = [];
+            for (const parentCode in parentChildMap) {
+                if (warningData[parentCode]) {
+                    childCodes.push(...parentChildMap[parentCode]);
+                }
+            }
+            
+            if (childCodes.length > 0) {
+                const tempTextarea = document.createElement('textarea');
+                tempTextarea.value = childCodes.join('\n');
+                document.body.appendChild(tempTextarea);
+                tempTextarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempTextarea);
+                const successElement = document.getElementById('childCopySuccess');
+                successElement.style.display = 'inline';
+                setTimeout(() => successElement.style.display = 'none', 2000);
+            } else {
+                alert('Không có mã con nào sắp hết hàng');
+            }
+        }
+        
+        function copyDebtCheckResults() {
+            const table = document.getElementById('debtCheckResultTable');
+            let textToCopy = '';
+            
+            // Lấy tiêu đề
+            const headers = table.querySelectorAll('thead th');
+            textToCopy += Array.from(headers).map(header => header.textContent).join('\t') + '\n';
+            
+            // Lấy dữ liệu
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                textToCopy += Array.from(cells).map(cell => cell.textContent).join('\t') + '\n';
+            });
+            
+            copyToClipboard(textToCopy);
+            const successElement = document.getElementById('debtCheckCopySuccess');
+            successElement.style.display = 'inline';
+            setTimeout(() => successElement.style.display = 'none', 2000);
+        }
+        
+        function pasteSampleCodes() {
+            let sampleCodes = [];
+            for (const parentCode in parentChildMap) {
+                if (warningData[parentCode] && parentChildMap[parentCode].length > 0) {
+                    sampleCodes.push(parentChildMap[parentCode][0]);
+                }
+            }
+            
+            if (sampleCodes.length > 0) {
+                document.getElementById('runningCodes').value = sampleCodes.join('\n');
+            } else {
+                alert('Không có mã mẫu nào để dán');
+            }
+        }
+
+        
+        function pasteExtractedCodes() {
+            if (!currentResults || currentResults.length === 0) {
+                alert('Chưa có dữ liệu mã sản phẩm từ tab 1');
+                return;
+            }
+            const codes = currentResults.map(([code, _]) => code).join('\n');
+            document.getElementById('runningCodes').value = codes;
+        }
+
+        // Hàm chung
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+    </script>
+
+<script>
+function checkDebtOrders() {
+    if (Object.keys(allChildProducts).length === 0) {
+        alert('Vui lòng phân tích tồn kho trước (Tab 2)');
+        return;
+    }
+
+    const debtLines = document.getElementById('debtCheckCodes').value
+        .split('\n').map(l => l.trim()).filter(l => l !== '');
+
+    if (debtLines.length === 0) {
+        alert('Vui lòng nhập ít nhất một mã sản phẩm nợ đơn');
+        return;
+    }
+
+    let parentDebtMapInStock = {}, parentDebtMapOutStock = {};
+
+    for (const line of debtLines) {
+        const [debtCode, qtyRaw] = line.split(/\s+/);
+        const debtQty = parseInt(qtyRaw || '0') || 0;
+        const product = allChildProducts[debtCode];
+        const stock = product ? product.stock : 0;
+        const size = product ? product.size : 'Không xác định';
+        const parentCode = product ? product.parentCode : debtCode.substring(0,7);
+
+        const targetMap = stock > 0 ? parentDebtMapInStock : parentDebtMapOutStock;
+
+        if (!targetMap[parentCode]) {
+            targetMap[parentCode] = { totalDebt: 0, items: [] };
+        }
+        targetMap[parentCode].totalDebt += debtQty;
+        targetMap[parentCode].items.push({ code: debtCode, size, stock, debtQty });
+    }
+
+    function renderDebtTable(targetMap, tbodyId) {
+        let html = '';
+        let stt = 1;
+        Object.entries(targetMap).forEach(([parentCode, {totalDebt, items}]) => {
+            const rowspan = items.length;
+            let first = true;
+            items.sort((a,b) => b.debtQty - a.debtQty);
+            for (const item of items) {
+                html += '<tr>';
+                if (first) {
+                    html += `<td rowspan="${rowspan}">${stt++}</td><td rowspan="${rowspan}">${parentCode}</td><td rowspan="${rowspan}">${totalDebt}</td>`;
+                    first = false;
+                }
+                const stockText = item.stock > 0 ? item.stock : 'Hết hàng';
+                const danger = item.stock === 0 ? 'danger' : '';
+                html += `<td>${item.code}</td><td>${item.size}</td><td>${stockText}</td><td class="${danger}">${item.debtQty}</td><td><button onclick="alert('Cần giục đơn cho mã ${item.code}\nTồn: ${item.stock}\nNợ: ${item.debtQty}')">Giục đơn</button></td>`;
+                html += '</tr>';
+            }
+        });
+        document.getElementById(tbodyId).innerHTML = html || '<tr><td colspan="8">Không có dữ liệu.</td></tr>';
+    }
+
+    renderDebtTable(parentDebtMapInStock, 'debtCheckResultInStock');
+    renderDebtTable(parentDebtMapOutStock, 'debtCheckResultOutOfStock');
+    document.getElementById('debtCheckResultSection').style.display = 'block';
+}
+
+function exportDebtCheckToExcel() {
+    const wb = XLSX.utils.book_new();
+
+    // Function to convert table to worksheet
+    function tableToSheet(tableId, sheetName) {
+        const table = document.getElementById(tableId);
+        const ws = XLSX.utils.table_to_sheet(table);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    }
+
+    tableToSheet("debtCheckResultTableInStock", "Còn hàng");
+    tableToSheet("debtCheckResultTableOutOfStock", "Hết hàng");
+
+    XLSX.writeFile(wb, "Ket_qua_no_don.xlsx");
+}
+</script>
+</body>
+</html>
