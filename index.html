@@ -1794,10 +1794,17 @@ H633681I13"></textarea>
             function renderDebtTable(targetMap, tbodyId) {
                 let html = '';
                 let stt = 1;
-                Object.entries(targetMap).forEach(([parentCode, {totalDebt, items}]) => {
+                
+                // Convert the map to an array and sort by total debt in descending order
+                const sortedParents = Object.entries(targetMap).sort((a, b) => b[1].totalDebt - a[1].totalDebt);
+                
+                for (const [parentCode, {totalDebt, items}] of sortedParents) {
+                    // Sort items by debt quantity in descending order
+                    items.sort((a, b) => b.debtQty - a.debtQty);
+                    
                     const rowspan = items.length;
                     let first = true;
-                    items.sort((a,b) => b.debtQty - a.debtQty);
+                    
                     for (const item of items) {
                         html += '<tr>';
                         if (first) {
@@ -1809,7 +1816,7 @@ H633681I13"></textarea>
                         html += `<td>${item.code}</td><td>${item.size}</td><td>${stockText}</td><td class="${danger}">${item.debtQty}</td><td><button onclick="alert('Cần giục đơn cho mã ${item.code}\nTồn: ${item.stock}\nNợ: ${item.debtQty}')">Giục đơn</button></td>`;
                         html += '</tr>';
                     }
-                });
+                }
                 document.getElementById(tbodyId).innerHTML = html || '<tr><td colspan="8">Không có dữ liệu.</td></tr>';
             }
 
